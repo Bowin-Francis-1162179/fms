@@ -38,7 +38,7 @@ def getCursor():
         print(f"Failed to connect with DB {e}")
         return None
 
-####### New function - reads the date from the new database table.
+####### New function - reads the date from the new database table
 def get_date():
     cursor = getCursor()        
     qstr = "SELECT curr_date FROM curr_date;"  
