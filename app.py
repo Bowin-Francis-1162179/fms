@@ -41,27 +41,21 @@ def getCursor():
 ####### New function - reads the date from the new database table
 def get_date():
     cursor = getCursor()        
-    qstr = "SELECT curr_date FROM curr_date;"  
+    qstr = "select curr_date from curr_date;"  
     cursor.execute(qstr)        
-    result = cursor.fetchone()
-    print(f" {result = }")  
-    # result = {'curr_date': datetime.date(2024, 10, 29)}
-    return result.get('curr_date')
+    curr_date = cursor.fetchone()        
+    return curr_date
 
 ####### Updated if statement with this line
 @app.route("/")
 def home():
-    curr_date = session.get('curr_date')
-    # if curr_date not in session, update it to session
-    if not curr_date:        
-        curr_date = get_date()
-        session.update({'curr_date': curr_date.strftime('%Y-%m-%d')})
+    # This line:
+    curr_date = get_date()
+    # Replaces these lines:
+    # if 'curr_date' not in session:
+    #     session.update({'curr_date': start_date})
+    return render_template("home.html", curr_date=curr_date)
 
-    # Format the date into Day Month Year
-    curr_date_obj = datetime.strptime(session["curr_date"], "%Y-%m-%d").date()
-    curr_date_formatted = curr_date_obj.strftime('%d %B %Y')
-
-    return render_template("home.html", curr_date=curr_date_formatted)
 
 ####### New function to reset the simulation back to the beginning - replaces reset_date() and clear_date()
 ##  NOTE: This requires fms-reset.sql file to be in the same folder as app.py
