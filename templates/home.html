@@ -4,12 +4,21 @@
 
 {% block content %}
 
-<p>Home </p>
-
-<!-- New line (which you are free to edit or delete): -->
-<p>{% if curr_date %}Today is: {{curr_date}}{% endif %}</p>
-
-<p>Add some brief text and an image here </p>
+ <!-- Background image -->
+ <section class="container my-5">
+  <div class="row align-items-center">
+      <div class="col-md-6">
+        <!-- image from pexels  -->
+          <img src="/static/home-img.jpg" alt="Farm Image" class="img-fluid rounded">
+      </div>
+      <div class="col-md-6">
+          <h2>Welcome to Farm Management</h2>
+          <p>Our Farm Management App helps you efficiently manage your farm operations, track mobs, manage paddocks, monitor stock, and organize movement. With real-time updates and easy-to-use features, you can focus on what matters the most—your farm's success.</p>
+          <p>Stay organized and stay productive with tools built specifically for farm management.</p>
+      </div>
+  </div>
+</section>
+<!-- Background image -->
 
 
 
