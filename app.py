@@ -14,17 +14,22 @@ from pathlib import Path
 app = Flask(__name__)
 app.secret_key = 'COMP636 S2'
 
-start_date = datetime(2024,10,29)
+# start_date = datetime(2024,10,29)
 pasture_growth_rate = 65    #kg DM/ha/day
 stock_consumption_rate = 14 #kg DM/animal/day
 
 db_connection = None
- 
+
 
 def getCursor():
-    """Gets a new dictionary cursor for the database.
-    If necessary, a new database connection is created here and used for all
-    subsequent to getCursor()."""
+    """
+    Gets a new dictionary cursor for the database.
+    If not connected a new connection is established.
+
+    Returns:
+        cursor: A dictionary cursor object for executing database queries.
+        None: If the connection cannot be established or an error occurs.
+    """
     try:
         global db_connection
         if db_connection is None or not db_connection.is_connected():
@@ -38,36 +43,46 @@ def getCursor():
         print(f"Failed to connect with DB {e}")
         return None
 
-####### New function - reads the date from the new database table
+
 def get_date():
+    """
+    Function read the date from the database table 'curr_date'.
+    Returns:
+        Dict: Return the curr_date from table
+    """
     cursor = getCursor()        
     qstr = "SELECT curr_date FROM curr_date;"  
     cursor.execute(qstr)        
     result = cursor.fetchone()
-    print(f" {result = }")  
-    # result = {'curr_date': datetime.date(2024, 10, 29)}
     return result.get('curr_date')
+
 
 ####### Updated if statement with this line
 @app.route("/")
 def home():
+    """
+    API to render the home page of the application.
+    Returns:
+        render_template: The rendered HTML template for the home page 
+    """
     curr_date = session.get('curr_date')
     # if curr_date not in session, update it to session
     if not curr_date:        
         curr_date = get_date()
-        session.update({'curr_date': curr_date.strftime('%Y-%m-%d')})
+        session.update({'curr_date': curr_date.strftime('%d %B %Y')})
+    
+    return render_template("home.html")
 
-    # Format the date into Day Month Year
-    curr_date_obj = datetime.strptime(session["curr_date"], "%Y-%m-%d").date()
-    curr_date_formatted = curr_date_obj.strftime('%d %B %Y')
-
-    return render_template("home.html", curr_date=curr_date_formatted)
 
 ####### New function to reset the simulation back to the beginning - replaces reset_date() and clear_date()
 ##  NOTE: This requires fms-reset.sql file to be in the same folder as app.py
 @app.route("/reset", methods=['GET'])
 def reset():
-    """Reset data to original state."""
+    """
+    API to reset data to original state.
+    Returns:
+        render_template: The rendered HTML template for the home page 
+    """
     THIS_FOLDER = Path(__file__).parent.resolve()
 
     with open(THIS_FOLDER / 'fms-reset.sql', 'r') as f:
@@ -78,19 +93,243 @@ def reset():
     
     # remove curr_date from session and update it from database
     session.pop('curr_date', None)
-    curr_date = get_date()
-    
-    return redirect(url_for('paddocks'))  
+    flash("Data has been successfully reset to its original state.", "success")
+    return redirect(url_for('home'))
 
-@app.route("/mobs")
-def mobs():
+
+@app.route("/clear_date", methods=['GET'])
+def clear_date():
     """
-    List the mob details (excludes the stock in each mob).
+    API to clear session data
+    """
+    curr_date = session.get('curr_date')
+    if curr_date:
+        session.pop('curr_date', None)
+    flash("Date has been successfully removed from session.", "success")    
+    return redirect(url_for('paddocks'))
+
+
+@app.route('/next_day', methods=['GET'])
+def next_day():
+    """
+    Increment the fms current date by one day and calculate the new paddock.
+    Returns:
+        render_template: The rendered HTML template for the home page
+    """
+    curr_date = get_date()
+    # Add one day extra
+    next_date = curr_date + timedelta(days=1)
+    # update the new date in session
+    session.update({'curr_date': next_date.strftime('%d %B %Y')})
+
+    try:
+        cursor = getCursor()
+        # update the current date in the curr_date table
+        cursor.execute("UPDATE curr_date SET curr_date = %s;", (next_date,))
+        db_connection.commit()
+
+        # update the paddock table with new pasture values
+        qstr = """
+        SELECT paddocks.id, paddocks.area, paddocks.dm_per_ha, paddocks.total_dm, COUNT(stock.id) AS stock_count
+        FROM paddocks
+        LEFT JOIN mobs ON paddocks.id = mobs.paddock_id
+        LEFT JOIN stock ON mobs.id = stock.mob_id
+        GROUP BY paddocks.id
+        """
+        cursor.execute(qstr)
+        paddocks = cursor.fetchall()
+
+        for paddock in paddocks:
+            # Calculate new pasture levels
+            calculated_pasture_level = pasture_levels(paddock)
+            # Update paddock the paddock table with new pasture level
+            cursor.execute("UPDATE paddocks SET total_dm = %s, dm_per_ha = %s  WHERE id = %s;", 
+                        (calculated_pasture_level['total_dm'], calculated_pasture_level['dm_per_ha'], paddock.get('id')))
+            db_connection.commit()
+    except Exception as e:
+        print("failed to connect with database", e)
+    finally:
+        cursor.close()
+
+    return redirect(url_for('home'))
+    
+
+# Paddocks
+@app.route("/paddocks")
+def paddocks():
+    """
+    API to list the paddocks
+    Returns:
+        render_template: The rendered HTML template for the paddock page with paddock list
     """
     cursor = getCursor()
     if cursor is None:
-        flash("Failed to connect with database")
+        flash("Failed to connect to database.", "danger")
         return "Failed to connect with database"
+    
+    qstr = """
+    SELECT paddocks.id, paddocks.name AS paddock_name, paddocks.area, paddocks.dm_per_ha, paddocks.total_dm, mobs.name AS mob_name, COUNT(stock.id) AS stock_count
+    FROM paddocks
+    LEFT JOIN mobs ON paddocks.id = mobs.paddock_id
+    LEFT JOIN stock ON mobs.id = stock.mob_id
+    GROUP BY paddocks.id
+    ORDER BY paddocks.name ASC;
+    """
+    try:
+        cursor.execute(qstr)
+        paddocks = cursor.fetchall()
+    except Exception as e:
+        flash("Failed to fetch data from paddock.", "danger")
+        print("failed to fetch data from paddocks", e)
+        paddocks = []
+    finally:
+        cursor.close()
+
+    paddocks_detail = []
+    # Highlight the paddock row with pasture level
+    for paddock in paddocks:
+        if paddock['dm_per_ha'] <= 1500:
+            paddock['color'] = 'table-danger'
+        elif paddock['dm_per_ha'] <= 1800:
+            paddock['color'] = 'table-warning'
+        else:
+            paddock['color'] = ''
+        
+        paddocks_detail.append(paddock)
+
+    return render_template("paddocks.html", paddocks=paddocks_detail)
+
+
+@app.route('/add_paddock', methods=['POST'])
+def add_paddock():
+    """
+    API to add a new paddock to the database.
+    """
+    name = request.form.get("name")
+    area = request.form.get("area")
+    dm_per_ha = request.form.get("dm_per_ha")
+
+    if not name or not area or not dm_per_ha:
+        flash("Please fill all fields.", "danger")
+        redirect(url_for('paddocks'))
+
+    area = round(float(area), 2)
+    dm_per_ha = round(float(dm_per_ha), 2)
+    total_dm = area * dm_per_ha
+    total_dm = round(float(total_dm), 2)
+
+    cursor = getCursor()
+    if cursor is None:
+        flash("Failed to connect to database.", "danger")
+        return "Failed to connect with database"
+    
+    try:
+        # insert new paddock into paddocks table
+        cursor.execute(
+            "INSERT INTO paddocks (name, area, dm_per_ha, total_dm) VALUES (%s, %s, %s, %s)", 
+            (name, area, dm_per_ha, total_dm)
+        )
+        db_connection.commit()
+        flash("Paddock added successfully.", "success")
+    except Exception as e:
+        flash("Failed to add paddock to database.", "danger")
+        return f"Failed to add paddock: {e}"
+    finally:
+        cursor.close()
+
+    return redirect(url_for('paddocks'))
+
+
+@app.route('/edit_paddock', methods=['POST'])
+def edit_paddock():
+    """
+    API to edit a paddock in the database.        
+    """
+    paddock_id = request.form.get("id")
+    name = request.form.get("name")
+    area = request.form.get("area")
+    dm_per_ha = request.form.get("dm_per_ha")
+
+    if not paddock_id or not name or not area or not dm_per_ha:
+        flash("Please fill all fields.", "danger")
+        redirect(url_for('paddocks'))
+    
+    area = round(float(area), 2)
+    dm_per_ha = round(float(dm_per_ha), 2)
+    total_dm = area * dm_per_ha
+    total_dm = round(float(total_dm), 2)
+
+    cursor = getCursor()
+    if cursor is None:
+        return "Failed to connect with database"
+    
+    try:
+        # search paddock with id present in table
+        cursor.execute("SELECT id FROM paddocks WHERE id = %s", (paddock_id,))
+        if not cursor.fetchone():
+            flash("Paddock not found.", "danger")
+            redirect(url_for('paddocks'))
+            
+        # update paddock in paddocks table
+        cursor.execute("UPDATE paddocks SET name = %s, area = %s, dm_per_ha = %s , total_dm = %s WHERE id = %s;", 
+                       (name, area, dm_per_ha, total_dm, paddock_id))
+        db_connection.commit()
+        flash("Paddock updated successfully.", "success")
+        
+    except Exception as e:
+        flash("Failed to edit paddock in database.", "danger")
+        print("failed to update paddocks", e)
+    finally:
+        cursor.close()
+    
+    return redirect(url_for('paddocks'))
+
+
+@app.route('/delete_paddock/<int:paddock_id>', methods=['POST'])
+def delete_paddock(paddock_id):
+    """
+    API to delete a paddock in the database.
+    """
+    cursor = getCursor()
+    if cursor is None:
+        return "Failed to connect with database"
+    
+    try:
+        cursor.execute("SELECT COUNT(*) AS count FROM mobs WHERE paddock_id = %s", (paddock_id,))
+        paddock_count = cursor.fetchone()
+
+        # check paddock id in mob
+        if paddock_count['count'] > 0:
+            flash("Paddock cannot be deleted because it is assigned to a mob.", "danger")
+            return redirect(url_for('paddocks'))
+
+        cursor.execute("DELETE FROM paddocks WHERE id = %s", (paddock_id,))
+        if cursor.rowcount == 0:
+            flash("Paddock not found.", "danger")
+            redirect(url_for('paddocks'))
+        db_connection.commit()
+        
+    except Exception as e:
+        print("failed to update paddocks", e)
+    finally:
+        cursor.close()
+
+    flash("Paddock deleted successfully.", "success")
+    return redirect(url_for('paddocks'))
+
+
+# Mobs page
+@app.route("/mobs")
+def mobs():
+    """
+    API to list the mob details.
+    Returns:
+        render_template: The rendered HTML template for the mob page with mobslist
+    """
+    cursor = getCursor()
+    if cursor is None:
+        flash("Failed to connect to database.", "danger")
+        return redirect(url_for('mobs'))
     
     qstr = """
     SELECT mobs.id, mobs.name AS mob_name, paddocks.name AS paddock_name, COUNT(stock.id) AS stock_count FROM mobs 
@@ -102,20 +341,14 @@ def mobs():
     try:
         cursor.execute(qstr)
         mobs = cursor.fetchall()
-        print(f"{ mobs = }")
+        cursor.execute("SELECT id, name FROM paddocks;")
+        paddocks = cursor.fetchall()
     except Exception as e:
         print("failed to fetch data from mobs", e)
-        flash('Failed to fetch data from mobs')
+        flash('Failed to fetch data from mobs', "danger")
         mobs = []
     finally:
         cursor.close()
 
-    return render_template("mobs.html", mobs=mobs)
-
-
-@app.route("/paddocks")
-def paddocks():
-    """List paddock details."""
-    return render_template("paddocks.html")  
-
+    return render_template("mobs.html", mobs=mobs, paddocks=paddocks)
 
