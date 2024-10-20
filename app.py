@@ -568,7 +568,7 @@ def move_mob():
             flash("Selected Paddock not found.", "warning")
             return "Selected Paddock not found."
 
-        # check if the paddock is available.
+        # check if the paddock is available
         cursor.execute("SELECT id FROM mobs WHERE paddock_id = %s;", (paddock_id,))
         existing_paddock = cursor.fetchone()
         if existing_paddock:
