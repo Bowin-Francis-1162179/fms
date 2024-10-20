@@ -352,3 +352,264 @@ def mobs():
 
     return render_template("mobs.html", mobs=mobs, paddocks=paddocks)
 
+
+@app.route('/add_mob', methods=['POST'])
+def add_mob():
+    """
+    API to add a new mob.
+    """
+    name = request.form.get("name")
+    paddock_id = request.form.get("paddock_id")
+    print(name, paddock_id)
+    if not name or not paddock_id:
+        flash("Please fill all fields.", "danger")
+        return redirect(url_for('mobs'))
+
+    cursor = getCursor()
+    if cursor is None:
+        flash("Failed to connect to database.", "danger")
+        return redirect(url_for('mobs'))
+    
+    try:
+        cursor.execute("SELECT id FROM paddocks WHERE id = %s;", (paddock_id,))
+        existing_paddock = cursor.fetchone()
+        if not existing_paddock:
+            flash("Paddock does not exist.", "danger")
+            return redirect(url_for('mobs'))
+
+        # check the paddock is not assign to any mob
+        cursor.execute("SELECT name FROM mobs WHERE paddock_id = %s;", (paddock_id,))
+        existing_mob = cursor.fetchone()
+        if existing_mob:
+            flash("Mob already exists in this paddock.", "danger")
+            return redirect(url_for('mobs'))
+        
+        cursor.execute(
+            "INSERT INTO mobs (name, paddock_id) VALUES (%s, %s)", 
+            (name, paddock_id)
+        )
+        db_connection.commit()
+        flash("Mob added successfully.", "success")
+    except Exception as e:
+        flash("Failed to add mob to database.", "danger")
+        return redirect(url_for('mobs'))
+    finally:
+        cursor.close()
+    
+    return redirect(url_for('mobs'))
+
+
+@app.route("/stocks")
+def stocks():
+    """
+    API to list Stock by mob Group
+    Returns:
+        render_template: The rendered HTML template for the stock page with stock list
+    """
+    cursor = getCursor()
+    if cursor is None:
+        flash("Failed to connect to database.", "danger")
+        return redirect(url_for('stocks'))
+    
+    qstr = """
+    SELECT stock.id, stock.dob, stock.weight, mobs.name AS mob_name, paddocks.name AS paddocks_name
+    FROM stock
+    LEFT JOIN mobs ON stock.mob_id = mobs.id
+    LEFT JOIN paddocks ON paddocks.id = mobs.paddock_id
+    ORDER BY mobs.name ASC, stock.id ASC;
+    """
+    try:
+        cursor.execute(qstr)
+        stocks = cursor.fetchall()
+        cursor.execute("SELECT id, name FROM mobs;")
+        mobs = cursor.fetchall()
+    except Exception as e:
+        flash("Failed to fetch stock from database.", "danger")
+        print("failed to fetch data from stocks", e)
+        stocks = []
+    finally:
+        cursor.close()
+
+    # group the mob with same mob and paddock
+    grouped_mob_data = {}
+    for animal in stocks:
+        mob_name = animal.get("mob_name")
+        paddock_name = animal.get("paddocks_name")
+        mob_paddock_key = (mob_name, paddock_name)
+
+        if mob_paddock_key not in grouped_mob_data:
+            grouped_mob_data[mob_paddock_key] = {
+                "mob_name": mob_name,
+                "paddock_name": paddock_name,
+                "avg_weight": 0,
+                "stock_count": 0,
+                "stock": []
+            }
+        # increment the stock count by 1
+        grouped_mob_data[mob_paddock_key]["stock_count"] += 1
+        grouped_mob_data[mob_paddock_key]["avg_weight"] += animal.get("weight")
+        grouped_mob_data[mob_paddock_key]["stock"].append({
+            "id": animal.get("id"),
+            "age": calculate_age(animal.get("dob")),
+            "weight": animal.get("weight")
+        })
+    
+    # calculate the average weight of total animals in a mob
+    for mob_group in grouped_mob_data.values():
+        mob_group["avg_weight"] /= mob_group["stock_count"]
+        # round the caluated average weight to the nearest number
+        mob_group["avg_weight"] = round(mob_group["avg_weight"])
+
+    return render_template("stocks.html", grouped_mobs=list(grouped_mob_data.values()), mobs=mobs)
+
+
+@app.route('/add_animal', methods=['POST'])
+def add_animal():
+    """
+    Add a new animal to the database.
+    """
+    dob = request.form.get("dob")
+    weight = request.form.get("weight")
+    mob_id = request.form.get("mob_id")
+
+    if not dob or not weight or not mob_id:
+        flash("Please fill all fields.", "danger")
+        return redirect(url_for('stocks'))
+
+    cursor = getCursor()
+    if cursor is None:
+        flash("Failed to connect to database.", "danger")
+        return redirect(url_for('stocks'))
+    
+    try:
+        cursor.execute("SELECT id FROM mobs WHERE id = %s;", (mob_id,))
+        existing_mob = cursor.fetchone()
+        if not existing_mob:
+            flash("Mob does not exist.", "danger")
+            return redirect(url_for('stocks'))
+        
+        cursor.execute(
+            "INSERT INTO stock (mob_id, dob, weight) VALUES (%s, %s, %s)", 
+            (mob_id, dob, weight)
+        )
+        db_connection.commit()
+        flash("Stock added successfully.", "success")
+    except Exception as e:
+        flash("Failed to add stock to database.", "danger")
+        return redirect(url_for('stocks'))
+    finally:
+        cursor.close()
+
+    return redirect(url_for('stocks'))
+
+
+@app.route('/get_mob_paddock', methods=['GET'])
+def get_mob_paddock():
+    """
+    get mob and paddock
+    Returns:
+        render_template: The rendered HTML template for the move mob page with mobs list and paddock list
+    """
+    cursor = getCursor()
+    if cursor is None:
+        flash("Failed to connect to database.", "danger")
+        return "Failed to connect with database"
+    
+    try:
+        cursor.execute("SELECT mobs.id AS mob_id, mobs.name AS mob_name FROM mobs ORDER BY mobs.name ASC;")
+        mobs = cursor.fetchall()
+        # Fetch the available paddock only
+        cursor.execute("""
+            SELECT paddocks.id AS paddock_id, paddocks.name AS paddock_name FROM paddocks 
+            LEFT JOIN mobs ON paddocks.id = mobs.paddock_id
+            WHERE mobs.paddock_id IS NULL
+            ORDER BY paddocks.name ASC;
+            """)
+        paddocks = cursor.fetchall()
+    except Exception as e:
+        print("failed to fetch data from paddocks", e)
+        flash("Failed to fetch data from database.", "danger")
+        paddocks = []
+        mobs = []
+    finally:
+        cursor.close()
+
+    return render_template("move_mob.html", paddocks=paddocks, mobs=mobs)
+
+
+@app.route('/move_mob', methods=['POST'])
+def move_mob():
+    """
+    API to move one mob to another free paddock
+    """
+    print(request.form)
+    mob_id = request.form.get("mob_id")
+    paddock_id = request.form.get("paddock_id")
+
+    if not mob_id or not paddock_id:
+        flash("Please select the mobs and paddock to move mobs.", "danger")
+        return "Please select the mobs and paddock to move mobs"
+    
+    cursor = getCursor()
+    if cursor is None:
+        flash("Failed to connect with database.", "danger")
+        return "Failed to connect with database"
+    
+    try:
+        cursor.execute("SELECT name FROM mobs WHERE id = %s", (mob_id,))
+        mob_name = cursor.fetchone()
+        if not mob_name:
+            flash("Selected Mob not found.", "warning")
+            return "Selected Mob not found."
+        
+        cursor.execute("SELECT name FROM paddocks WHERE id = %s", (paddock_id,))
+        paddock_name = cursor.fetchone()
+        if not paddock_name:
+            flash("Selected Paddock not found.", "warning")
+            return "Selected Paddock not found."
+
+        # check if the paddock is available
+        cursor.execute("SELECT id FROM mobs WHERE paddock_id = %s;", (paddock_id,))
+        existing_paddock = cursor.fetchone()
+        if existing_paddock:
+            flash("Selected Paddock not found.", "warning")
+            return "Please select different paddock, it already contain mobs"
+
+        # # move mob
+        cursor.execute("UPDATE mobs SET paddock_id = %s WHERE id = %s;", (paddock_id, mob_id))
+        db_connection.commit()
+        
+    except Exception as e:
+        flash("Failed to move mob from paddock.", "danger")
+        print("failed to fetch data from paddocks", e)
+    finally:
+        cursor.close()
+
+    flash(f"{mob_name['name']} successfully moved to paddock {paddock_name['name']}.", "success")
+
+    return redirect(url_for('get_mob_paddock'))
+
+
+def pasture_levels(paddock):
+    """
+    Calculate total pasture (in kg DM) for a paddock based on area, growth rate and stock number.
+    """
+    area = paddock.get("area")
+    stock_num = paddock.get("stock_count")
+    total_dm = paddock.get("total_dm")
+    growth = area * pasture_growth_rate
+    consumption = stock_num * stock_consumption_rate
+    total_dm = total_dm + growth - consumption
+    dm_per_ha = total_dm / area
+    return {'total_dm': round(total_dm, 2), 'dm_per_ha': round(dm_per_ha, 2)}
+
+def calculate_age(birth_date):
+    """
+    Calculate the age of an animal from the fms date
+    """
+    current_date = get_date()
+    age = (current_date.year - birth_date.year) - (
+        (current_date.month, current_date.day) < (birth_date.month, birth_date.day)
+    )
+
+    return age
