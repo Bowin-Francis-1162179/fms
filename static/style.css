@@ -1,0 +1,37 @@
+body {
+    /* min-height: 75rem; */
+    padding-top: 2rem;
+    /* padding-bottom: 2rem; */
+}
+
+/* For showing image in home page */
+.hero {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    background-image: url('/static/home-img.jpg');
+    background-size: cover;
+    background-position: center;
+    height: 95vh;
+    margin-top: -4rem;
+  }
+
+  .hero-text {
+    position: absolute;
+    background: rgba(0, 0, 0.1, 0.7);
+    text-align: center;
+    color: white;
+    padding: 50px;
+    border-radius: 10px;
+    margin: 40px;
+  }
+
+
+/* Edit and Delete Icon hover effect*/
+.bi-pencil-fill, .bi-trash3 {
+    color: #6c757d;
+}
+.bi-pencil-fill:hover,  .bi-trash3:hover {
+    color: #000000;
+}
