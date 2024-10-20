@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}FMS - Move Mob{% endblock %}
+{% block header %}MOVE MOB{% endblock %}
+
+{% block content %}
+
+<!-- container to move mob -->
+<div class="container">
+    <div class="p-5 bg-body border border-dashed rounded-4 shadow">
+
+        <form id="moveMob" method="POST" action="{{url_for('move_mob')}}" class="needs-validation" novalidate>
+            <div class="mb-3">
+                <label for="mobSelect" class="form-label">Select Mob</label>
+                <select class="form-select" id="mobSelect" name="mob_id" required>
+                    <option value="" selected disabled value="">Select a mob</option>
+                    {% for mob in mobs %}
+                    <option value="{{mob.mob_id}}">{{mob.mob_name}}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label for="paddockSelect" class="form-label">Select New Paddock</label>
+                <select class="form-select" id="paddockSelect" name="paddock_id" required>
+                    <option selected disabled value="">Select a paddock</option>
+                    {% for paddock in paddocks %}
+                    <option value="{{paddock.paddock_id}}">{{paddock.paddock_name}}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12">
+                <button class="btn btn-primary" type="submit">Move Mob</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
