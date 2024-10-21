@@ -7,13 +7,6 @@
 
 <div class="container">
     <div class="p-5 bg-body border border-dashed rounded-4 shadow">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <p></p>
-            <!-- Button to trigger edit modal -->
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addMobModal">
-                Add Mob
-            </button>
-        </div>
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead class="table-light">
@@ -37,37 +30,4 @@
     </div>
 </div>
 
-<!-- Add New Mob Modal -->
-<div class="modal fade" id="addMobModal" tabindex="-1" aria-labelledby="addMobModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h1 class="modal-title fs-5" id="addMobModalLabel">Add New Mob</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="addMobForm" method="POST" action="{{ url_for('add_mob') }}" class="needs-validation"
-                    novalidate>
-                    <div class="mb-3">
-                        <label for="mobName" class="form-label">Mob Name</label>
-                        <input type="text" class="form-control" id="mobName" name="name" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="paddockName" class="form-label">Paddock Name</label>
-                        <select class="form-select" id="paddockName" name="paddock_id" required>
-                            <option selected disabled value="">Select Paddock</option>
-                            {% for paddock in paddocks %}
-                            <option value="{{paddock.id}}">{{paddock.name}}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-12">
-                        <button class="btn btn-primary" type="submit">Submit</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- add modal ends -->
 {% endblock %}

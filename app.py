@@ -341,52 +341,6 @@ def mobs():
     return render_template("mobs.html", mobs=mobs, paddocks=paddocks)
 
 
-@app.route('/add_mob', methods=['POST'])
-def add_mob():
-    """
-    API to add a new mob.
-    """
-    name = request.form.get("name")
-    paddock_id = request.form.get("paddock_id")
-    print(name, paddock_id)
-    if not name or not paddock_id:
-        flash("Please fill all fields.", "danger")
-        return redirect(url_for('mobs'))
-
-    cursor = getCursor()
-    if cursor is None:
-        flash("Failed to connect to database.", "danger")
-        return redirect(url_for('mobs'))
-    
-    try:
-        cursor.execute("SELECT id FROM paddocks WHERE id = %s;", (paddock_id,))
-        existing_paddock = cursor.fetchone()
-        if not existing_paddock:
-            flash("Paddock does not exist.", "danger")
-            return redirect(url_for('mobs'))
-
-        # check the paddock is not assign to any mob
-        cursor.execute("SELECT name FROM mobs WHERE paddock_id = %s;", (paddock_id,))
-        existing_mob = cursor.fetchone()
-        if existing_mob:
-            flash("Mob already exists in this paddock.", "danger")
-            return redirect(url_for('mobs'))
-        
-        cursor.execute(
-            "INSERT INTO mobs (name, paddock_id) VALUES (%s, %s)", 
-            (name, paddock_id)
-        )
-        db_connection.commit()
-        flash("Mob added successfully.", "success")
-    except Exception as e:
-        flash("Failed to add mob to database.", "danger")
-        return redirect(url_for('mobs'))
-    finally:
-        cursor.close()
-    
-    return redirect(url_for('mobs'))
-
-
 @app.route("/stocks")
 def stocks():
     """
@@ -449,46 +403,6 @@ def stocks():
         mob_group["avg_weight"] = round(mob_group["avg_weight"])
 
     return render_template("stocks.html", grouped_mobs=list(grouped_mob_data.values()), mobs=mobs)
-
-
-@app.route('/add_animal', methods=['POST'])
-def add_animal():
-    """
-    Add a new animal to the database.
-    """
-    dob = request.form.get("dob")
-    weight = request.form.get("weight")
-    mob_id = request.form.get("mob_id")
-
-    if not dob or not weight or not mob_id:
-        flash("Please fill all fields.", "danger")
-        return redirect(url_for('stocks'))
-
-    cursor = getCursor()
-    if cursor is None:
-        flash("Failed to connect to database.", "danger")
-        return redirect(url_for('stocks'))
-    
-    try:
-        cursor.execute("SELECT id FROM mobs WHERE id = %s;", (mob_id,))
-        existing_mob = cursor.fetchone()
-        if not existing_mob:
-            flash("Mob does not exist.", "danger")
-            return redirect(url_for('stocks'))
-        
-        cursor.execute(
-            "INSERT INTO stock (mob_id, dob, weight) VALUES (%s, %s, %s)", 
-            (mob_id, dob, weight)
-        )
-        db_connection.commit()
-        flash("Stock added successfully.", "success")
-    except Exception as e:
-        flash("Failed to add stock to database.", "danger")
-        return redirect(url_for('stocks'))
-    finally:
-        cursor.close()
-
-    return redirect(url_for('stocks'))
 
 
 @app.route('/get_mob_paddock', methods=['GET'])

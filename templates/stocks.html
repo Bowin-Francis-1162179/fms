@@ -8,13 +8,6 @@
 <!-- Container to list paddock -->
 <div class="container">
     <div class="p-5 bg-body border border-dashed rounded-4 shadow">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <p></p>
-            <!-- Button to trigger edit  modal -->
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockModal">
-                Add Stock
-            </button>
-        </div>
         <!-- looping the stock grouped by mob -->
         {% for mob in grouped_mobs %}
         <div class="border border-dark-subtle rounded p-3 mb-2 shadow-sm bg-body-tertiary">
@@ -56,44 +49,5 @@
         {% endfor %}
     </div>
 </div>
-
-<!-- Add New Stock Modal -->
-<div class="modal fade" id="addStockModal" tabindex="-1" aria-labelledby="addStockModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h1 class="modal-title fs-5" id="addStockModalLabel">Add New Stock</h1>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Form to add modal with bootstrap validation -->
-                <form id="addStockForm" method="POST" action="{{ url_for('add_animal') }}" class="needs-validation"
-                    novalidate>
-                    <div class="mb-3">
-                        <label for="dob" class="form-label">Date of Birth</label>
-                        <input type="date" class="form-control" id="dob" name="dob" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="weight" class="form-label">Weight (kg)</label>
-                        <input type="number" class="form-control" id="weight" name="weight" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="mobSelect" class="form-label">Mob Name</label>
-                        <select class="form-select" id="mobSelect" name="mob_id" required>
-                            <option value="" selected disabled value="">Select a Mob</option>
-                            {% for mob in mobs %}
-                            <option value="{{mob.id}}">{{mob.name}}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-12">
-                        <button class="btn btn-primary" type="submit">Submit</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 
 {% endblock %}
