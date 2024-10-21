@@ -97,18 +97,6 @@ def reset():
     return redirect(url_for('home'))
 
 
-@app.route("/clear_date", methods=['GET'])
-def clear_date():
-    """
-    API to clear session data
-    """
-    curr_date = session.get('curr_date')
-    if curr_date:
-        session.pop('curr_date', None)
-    flash("Date has been successfully removed from session.", "success")    
-    return redirect(url_for('paddocks'))
-
-
 @app.route('/next_day', methods=['GET'])
 def next_day():
     """
@@ -150,7 +138,7 @@ def next_day():
         print("failed to connect with database", e)
     finally:
         cursor.close()
-
+    flash("Moved to next day.", "success")
     return redirect(url_for('home'))
     
 
