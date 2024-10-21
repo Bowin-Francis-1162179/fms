@@ -72,7 +72,10 @@
                                 <div class="modal-body">
                                     <form id="editPaddockForm" method="POST" action="{{ url_for('edit_paddock') }}"
                                         class="needs-validation" novalidate>
-                                        <input type="hidden" name="id" value="{{ paddock.id }}">
+                                        <div class="mb-3">
+                                            <label for="paddockId" class="form-label">Paddock Id : {{ paddock.id }}</label>
+                                            <input type="hidden" name="id" value="{{ paddock.id }}">
+                                        </div>
                                         <div class="mb-3">
                                             <label for="paddockName" class="form-label">Paddock Name</label>
                                             <input type="text" class="form-control" id="paddockName" name="name"
